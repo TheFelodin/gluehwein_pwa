@@ -63,6 +63,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 dialog h3{margin:0 0 8px}dialog select{font:inherit;width:100%;padding:10px;border-radius:10px;background:var(--bg);color:var(--tx);border:1px solid var(--line)}
 .zeile{display:flex;align-items:center;gap:12px;margin:14px 0}.zeile span{flex:1}
 #toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#333;color:#fff;padding:10px 16px;border-radius:20px;z-index:20;display:none;font-size:14px}
+dialog{max-height:85vh;overflow:auto}dialog hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 </style>
 </head>
 <body>
@@ -79,6 +80,13 @@ dialog h3{margin:0 0 8px}dialog select{font:inherit;width:100%;padding:10px;bord
 
 <section id="form">
   <h2><button class="ib" id="zurueck" aria-label="Zurück">←</button><span id="formTitel"></span></h2>
+  <label for="barcode">Barcode</label>
+  <div style="display:flex;gap:8px;align-items:center">
+  <input type="text" id="barcode" inputmode="numeric" autocomplete="off" style="flex:1">
+  <button class="btn t" id="scanBtn" type="button">Scannen</button>
+  </div>
+  <div class="sub" id="scanStatus"></div>
+  <div class="sub" id="doppelt"></div>
   <label for="name">Name</label><input type="text" id="name" autocomplete="off">
   <label for="haendler">Gekauft bei</label><input type="text" id="haendler" autocomplete="off">
   <div class="reihe" id="vorschlaege"></div>
@@ -108,12 +116,52 @@ dialog h3{margin:0 0 8px}dialog select{font:inherit;width:100%;padding:10px;bord
   <select id="sort"><option value="neueste">Neueste</option><option value="beste">Beste</option><option value="name">Name</option></select>
   <div class="zeile"><span>Aufsteigend</span><input type="checkbox" id="asc"></div>
   <div class="zeile"><span>Weihnachtsdeko<br><small class="sub">15. November bis 6. Januar</small></span><input type="checkbox" id="deko"></div>
-  <p class="sub">Alle Daten bleiben auf diesem Gerät. Es gibt kein Konto und keinen Server.</p>
-  <div class="aktionen"><button class="btn" id="menuZu">Fertig</button></div>
+  <hr>
+    <label for="mName">Dein Name</label><input type="text" id="mName" autocomplete="off">
+    <div class="sub">Wird nur angezeigt, wenn du Bewertungen als Datei teilst.</div>
+    <label>Deine Nutzer-ID</label>
+    <div class="sub" id="mId" style="word-break:break-all"></div>
+    <div class="aktionen" style="justify-content:flex-start"><button class="btn t" id="idKopieren">ID kopieren</button></div>
+    <hr>
+    <label>Teilen, Sichern und Importieren</label>
+    <div class="aktionen" style="justify-content:flex-start">
+    <button class="btn t" id="alleTeilen">Alle als Datei teilen</button>
+    <button class="btn t" id="backup">Backup speichern</button>
+    <button class="btn t" id="importBtn">Datei importieren</button>
+    </div>
+    <div class="sub" id="mMeldung"></div>
+  <hr>
+<p class="sub">Alle Daten bleiben auf diesem Gerät. Es gibt kein Konto und keinen Server. Die Nutzer-ID ist eine Zufallszahl ohne persönliche Angaben und wird nur in geteilten Dateien und Backups mitgeschickt. Beim Scannen wird die Barcode-Nummer an Open Food Facts gesendet, um Name, Bild und Händler zu holen. Dabei sieht Open Food Facts deine IP-Adresse. Wertung, Kommentar, Preis und Nutzer-ID werden nicht gesendet.</p>  <div class="aktionen"><button class="btn" id="menuZu">Fertig</button></div>
+</dialog>
+<dialog id="teilenDlg">
+<h3>Teilen</h3>
+<div class="sub" id="teilenTitel"></div>
+<div class="aktionen" style="justify-content:stretch"><button class="btn" id="alsNachricht" style="flex:1">Als Nachricht (Text + Bild)</button></div>
+<p class="sub">Text für alle Messenger, ohne die App.</p>
+<hr>
+<p class="sub">Für Freunde mit der App, die die Bewertung importieren können:</p>
+<label for="tName">Dein Name</label><input type="text" id="tName" autocomplete="off">
+<div class="sub" id="tMeldung"></div>
+<div class="aktionen"><button class="btn t" id="tZu">Abbrechen</button><button class="btn" id="alsDatei">Als Datei senden</button></div>
+</dialog>
+
+<dialog id="importDlg">
+<h3 id="impTitel"></h3>
+<div id="impText"></div>
+<div class="aktionen"><button class="btn t" id="impNein">Verwerfen</button><button class="btn" id="impJa">Übernehmen</button></div>
+</dialog>
+
+<input type="file" id="importDatei" accept=".json,application/json" hidden>
+<dialog id="scanDlg">
+<h3>Barcode scannen</h3>
+<div id="leser" style="width:100%;min-height:200px"></div>
+<div class="sub" id="scanMeldung"></div>
+<div class="aktionen"><button class="btn t" id="scanZu">Abbrechen</button></div>
 </dialog>
 <div id="gross"><img alt=""></div>
 <div id="toast"></div>
 
+<script src="html5-qrcode.min.js"></script>
 <script>
 'use strict';
 const $=s=>document.querySelector(s);
@@ -189,13 +237,14 @@ function liste(){
   const L=$('#liste');L.innerHTML='';
   if(!weine.length){L.innerHTML='<div class="leer"><div style="font-size:64px">🍷</div><b>Noch keine Bewertungen</b>Tippe auf „Neu“ und bewerte deinen ersten Glühwein.</div>';return}
   for(const w of sortiert()){
-    const k=document.createElement('div');k.className='karte';
-    const laden=[w.haendler,w.preis!=null?preisText(w.preis):null].filter(Boolean).join(' · ');
-    k.innerHTML=`<div class="bild">${w.bild?`<img src="${w.bild}" alt="">`:'🍷'}</div><div class="inh"><div class="name">${esc(w.name)}</div><div class="tp"></div>${w.kommentar?`<div class="kom">${esc(w.kommentar)}</div>`:''}${laden?`<div class="chips"><span class="chip">🛒 ${esc(laden)}</span></div>`:''}</div>${w.wertung>=5?`<span class="stern">${deko()?'🎄':'⭐'}</span>`:''}`;
-    k.querySelector('.tp').append(tassen(w.wertung,30,async v=>{w.wertung=v;w.geaendert=Date.now();await sichern(w);liste()}));
-    if(w.bild)k.querySelector('.bild').addEventListener('click',e=>{e.stopPropagation();gross(w.bild)});
-    k.addEventListener('click',()=>formOeffnen(w));
-    L.append(k);
+  const k=document.createElement('div');k.className='karte';
+  const laden=[w.haendler,w.preis!=null?preisText(w.preis):null].filter(Boolean).join(' · ');
+  const et=[laden?'🛒 '+laden:null,w.von?'von '+w.von:null].filter(Boolean);
+  k.innerHTML=`<div class="bild">${w.bild?`<img src="${w.bild}" alt="">`:'🍷'}</div><div class="inh"><div class="name">${esc(w.name)}</div><div class="tp"></div>${w.kommentar?`<div class="kom">${esc(w.kommentar)}</div>`:''}${et.length?`<div class="chips">${et.map(c=>`<span class="chip">${esc(c)}</span>`).join('')}</div>`:''}</div>${w.wertung>=5?`<span class="stern">${deko()?'🎄':'⭐'}</span>`:''}`;
+  k.querySelector('.tp').append(tassen(w.wertung,30,w.von?null:async v=>{w.wertung=v;w.geaendert=Date.now();await sichern(w);liste()}));
+  if(w.bild)k.querySelector('.bild').addEventListener('click',e=>{e.stopPropagation();gross(w.bild)});
+  k.addEventListener('click',()=>formOeffnen(w));
+  L.append(k);
   }
 }
 function gross(src){const g=$('#gross');g.querySelector('img').src=src;g.style.display='flex';g.onclick=()=>g.style.display='none'}
@@ -217,13 +266,14 @@ function chips(){
     b.onclick=()=>{$('#haendler').value=h===n.toLowerCase()?'':n;chips()};R.append(b)}
 }
 function formOeffnen(w){
-  aktuell=w||null;wertung=w?w.wertung:3;bild=w?.bild||null;
-  $('#formTitel').textContent=w?'Glühwein bearbeiten':'Neuer Glühwein';
-  $('#name').value=w?.name||'';$('#haendler').value=w?.haendler||'';
-  $('#preis').value=w?.preis!=null?String(w.preis.toFixed(2)).replace('.',','):'';
-  $('#kommentar').value=w?.kommentar||'';
-  $('#loeschen').style.display=w?'':'none';$('#teilen').style.display=w?'':'none';
-  zeigeWertung();zeigeBild();chips();pruefeName();ansicht(true);
+aktuell=w||null;wertung=w?w.wertung:3;bild=w?.bild||null;
+$('#formTitel').textContent=w?'Glühwein bearbeiten':'Neuer Glühwein';
+$('#barcode').value=w?.barcode||'';$('#scanStatus').textContent='';
+$('#name').value=w?.name||'';$('#haendler').value=w?.haendler||'';
+$('#preis').value=w?.preis!=null?String(w.preis.toFixed(2)).replace('.',','):'';
+$('#kommentar').value=w?.kommentar||'';
+$('#loeschen').style.display=w?'':'none';$('#teilen').style.display=w?'':'none';
+zeigeWertung();zeigeBild();chips();pruefeName();barcodePruefen();ansicht(true);
 }
 const pruefeName=()=>$('#speichern').disabled=!$('#name').value.trim();
 $('#name').oninput=pruefeName;$('#haendler').oninput=chips;
@@ -242,11 +292,12 @@ $('#datei').onchange=async e=>{
   }catch{toast('Das Bild konnte nicht gelesen werden.')}
 };
 $('#speichern').onclick=async()=>{
-  const p=parseFloat($('#preis').value.replace(',','.'));
-  const w={...(aktuell||{}),name:$('#name').value.trim(),wertung,kommentar:$('#kommentar').value.trim(),
-    haendler:$('#haendler').value.trim()||null,preis:isNaN(p)||p<0?null:p,bild,
-    eintragId:aktuell?.eintragId||crypto.randomUUID(),geaendert:Date.now()};
-  await sichern(w);weine=await alle();ansicht(false);liste();
+const p=parseFloat($('#preis').value.replace(',','.'));
+const w={...(aktuell||{}),name:$('#name').value.trim(),wertung,kommentar:$('#kommentar').value.trim(),
+haendler:$('#haendler').value.trim()||null,preis:isNaN(p)||p<0?null:p,bild,
+barcode:$('#barcode').value.replace(/\D/g,'').slice(0,14)||null,
+eintragId:aktuell?.eintragId||crypto.randomUUID(),geaendert:Date.now()};
+await sichern(w);weine=await alle();ansicht(false);liste();
 };
 $('#loeschen').onclick=async()=>{
   if(!confirm(`„${aktuell.name}“ wird endgültig gelöscht.`))return;
@@ -255,18 +306,18 @@ $('#loeschen').onclick=async()=>{
 
 /* ---------- Teilen ---------- */
 async function teilen(w){
-  const text=`🍷 ${w.name}\n${'☕'.repeat(Math.floor(w.wertung))}${w.wertung%1?'½':''} ${zahl(w.wertung)} von 5 Tassen`+
-    (w.kommentar?`\n„${w.kommentar}“`:'')+
-    ([w.haendler,w.preis!=null?preisText(w.preis):null].filter(Boolean).length?`\n🛒 ${[w.haendler,w.preis!=null?preisText(w.preis):null].filter(Boolean).join(' · ')}`:'');
   try{
-    const d={text};
-    if(w.bild){const b=await (await fetch(w.bild)).blob(),f=new File([b],'gluehwein.jpg',{type:'image/jpeg'});
-      if(navigator.canShare?.({files:[f]}))d.files=[f]}
-    if(navigator.share)await navigator.share(d);
-    else{await navigator.clipboard.writeText(text);toast('Text in die Zwischenablage kopiert.')}
-  }catch(e){if(e.name!=='AbortError')toast('Teilen ist fehlgeschlagen.')}
+  const d={text:nachrichtText(w)};
+  if(w.bild){
+  try{
+  const b=await (await fetch(w.bild)).blob(),f=new File([b],'gluehwein.jpg',{type:'image/jpeg'});
+  if(navigator.canShare?.({files:[f]}))d.files=[f];
+  }catch{}
+  }
+  if(navigator.share)await navigator.share(d);
+  else{await navigator.clipboard.writeText(d.text);toast('Text in die Zwischenablage kopiert.')}
+}catch(e){if(e.name!=='AbortError')toast('Teilen ist fehlgeschlagen.')}
 }
-$('#teilen').onclick=()=>teilen(aktuell);
 
 /* ---------- Einstellungen ---------- */
 $('#menuBtn').onclick=()=>{$('#sort').value=sort;$('#asc').checked=asc;$('#deko').checked=dekoAn;$('#menu').showModal()};
@@ -337,11 +388,313 @@ addEventListener('resize',()=>laeuft&&groesse());
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&deko()&&!laeuft){laeuft=true;requestAnimationFrame(schleife)}else if(document.hidden)laeuft=false});
 if(matchMedia('(prefers-reduced-motion: reduce)').matches)dekoAn=false;
 
+/* ---------- Nutzer-ID, Export, Import und Backup (Format gluehwein-v3) ---------- */
+
+const meineId=()=>{let id=store('nutzerId',null);if(!id){id=crypto.randomUUID();speichere('nutzerId',id)}return id};
+const meinName=()=>String(store('name','')||'').trim();
+const wertungText=w=>'☕'.repeat(Math.floor(w))+(w%1?'½':'');
+const nachrichtText=w=>{
+const laden=[w.haendler,w.preis!=null?preisText(w.preis):null].filter(Boolean).join(' · ');
+return`🍷 ${w.name}\n${wertungText(w.wertung)}  (${zahl(w.wertung)} von 5)`+(laden?`\n🛒 ${laden}`:'')+(w.kommentar?`\n„${w.kommentar}“`:'');
+};
+const ranglisteText=()=>'🍷 Meine Glühwein-Rangliste\n'+[...weine]
+.sort((a,b)=>b.wertung-a.wertung||a.name.toLowerCase().localeCompare(b.name.toLowerCase(),'de'))
+.map(w=>`\n${zahl(w.wertung)}/5 ${wertungText(w.wertung)} ${w.name}${w.haendler?` (${w.haendler})`:''}`).join('');
+
+/* --- Export --- */
+
+const bildBase64=d=>{const m=/^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(d||'');return m?m[1]:null};
+
+async function verkleinern(d,maxSeite,q){
+const bmp=await createImageBitmap(await (await fetch(d)).blob());
+const s=Math.min(1,maxSeite/Math.max(bmp.width,bmp.height));
+const c=document.createElement('canvas');c.width=Math.round(bmp.width*s);c.height=Math.round(bmp.height*s);
+c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+return c.toDataURL('image/jpeg',q);
+}
+
+async function eintragJson(w,modus,absender){
+const von=modus==='backup'?w.von:(w.von||absender),vonId=modus==='backup'?w.vonId:(w.vonId||meineId());
+const o={id:w.eintragId,name:w.name,wertung:w.wertung,kommentar:w.kommentar||'',geaendert:w.geaendert||0};
+if(von)o.von=von;if(vonId)o.vonId=vonId;
+if(w.barcode)o.barcode=w.barcode;
+if(w.haendler)o.haendler=w.haendler;
+if(w.preis!=null)o.preis=w.preis;
+if(w.bild){
+if(/^https:/.test(w.bild))o.bildUrl=w.bild;
+else{
+let d=w.bild;
+if(modus!=='backup'){try{d=await verkleinern(w.bild,modus==='einzeln'?800:400,modus==='einzeln'?.8:.7)}catch{}}
+const b=bildBase64(d);if(b)o.bildBase64=b;
+}
+}
+return o;
+}
+
+function herunterladen(blob,name){
+const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
+document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+toast('Datei gespeichert.');
+}
+
+async function dateiTeilen(daten,name,text){
+const blob=new Blob([JSON.stringify(daten)],{type:'application/json'});
+const f=new File([blob],name,{type:'application/json'});
+try{
+if(navigator.canShare?.({files:[f]})){
+const d={files:[f]};if(text)d.text=text;
+await navigator.share(d);return;
+}
+}catch(e){if(e.name==='AbortError')return}
+herunterladen(blob,name);
+}
+
+async function einzelnAlsDatei(w,absender){
+const o=await eintragJson(w,'einzeln',absender);
+const kurzname=w.name.replace(/[^A-Za-z0-9]/g,'').slice(0,30)||'Bewertung';
+await dateiTeilen({format:'gluehwein-v3',bewertungen:[o]},`Gluehwein-${kurzname}.json`,nachrichtText(w));
+}
+
+async function alleAlsDatei(absender){
+toast('Bereite Datei vor …');
+const l=[];for(const w of sortiert())l.push(await eintragJson(w,'liste',absender));
+await dateiTeilen({format:'gluehwein-v3',bewertungen:l},'Gluehwein-Bewertungen.json',ranglisteText());
+}
+
+async function backupSpeichern(){
+toast('Bereite Backup vor …');
+const l=[];for(const w of weine)l.push(await eintragJson(w,'backup',''));
+const daten={format:'gluehwein-v3',backup:{nutzerId:meineId(),name:meinName(),erstellt:new Date().toISOString()},bewertungen:l};
+await dateiTeilen(daten,`gluehwein-backup-${new Date().toISOString().slice(0,10)}.json`,'');
+}
+
+/* --- Import --- */
+
+const ID_OK=s=>typeof s==='string'&&/^[A-Za-z0-9-]{8,64}$/.test(s);
+const kurz=(s,n)=>String(s??'').trim().slice(0,n);
+const gutesBild=u=>{try{const x=new URL(u);return x.protocol==='https:'&&(x.hostname==='openfoodfacts.org'||x.hostname.endsWith('.openfoodfacts.org'))?x.href:null}catch{return null}};
+
+async function eintragLesen(o){
+const name=kurz(o.name,100);if(!name)return null;
+let w=typeof o.wertung==='number'?o.wertung:typeof o.sterne==='number'?o.sterne:3;
+if(!isFinite(w))w=3;
+w=Math.min(5,Math.max(.5,Math.round(w*2)/2));
+const e={
+eintragId:ID_OK(o.id)?o.id:null,vonId:ID_OK(o.vonId)?o.vonId:null,von:kurz(o.von,40)||null,
+name,wertung:w,kommentar:kurz(o.kommentar,1000),
+barcode:String(o.barcode??'').replace(/\D/g,'').slice(0,14)||null,haendler:kurz(o.haendler,40)||null,
+preis:typeof o.preis==='number'&&isFinite(o.preis)&&o.preis>=0&&o.preis<=10000?o.preis:null,
+geaendert:Math.min(Date.now(),Math.max(0,Number(o.geaendert)||0)),bild:null
+};
+if(typeof o.bildBase64==='string'&&o.bildBase64.length<4000000&&/^[A-Za-z0-9+/=]+$/.test(o.bildBase64)){
+const d='data:image/jpeg;base64,'+o.bildBase64;
+try{await createImageBitmap(await (await fetch(d)).blob());e.bild=d}catch{}
+}
+if(!e.bild&&typeof o.bildUrl==='string')e.bild=gutesBild(o.bildUrl);
+return e;
+}
+
+async function dateiLesen(text){
+let j;try{j=JSON.parse(text)}catch{return null}
+const f=j&&j.format,max=j&&j.backup?500:100;
+const roh=f==='gluehwein-v1'?[j]:(f==='gluehwein-v2'||f==='gluehwein-v3')&&Array.isArray(j.bewertungen)?j.bewertungen.slice(0,max):null;
+if(!roh)return null;
+const l=[];for(const o of roh)if(o&&typeof o==='object'){const e=await eintragLesen(o);if(e)l.push(e)}
+const b=j.backup&&typeof j.backup==='object'?{nutzerId:ID_OK(j.backup.nutzerId)?j.backup.nutzerId:null,name:kurz(j.backup.name,40),erstellt:kurz(j.backup.erstellt,30)}:null;
+return{liste:l,backup:b};
+}
+
+function planen(l,vorhanden,backupModus){
+const gesehen=new Set(),plaene=[];
+for(const d of l){
+const key=d.eintragId||`${d.name}|${d.von}|${d.barcode}`;
+if(gesehen.has(key))continue;gesehen.add(key);
+const t=d.eintragId?vorhanden.find(w=>w.eintragId===d.eintragId)
+:vorhanden.find(w=>w.name.toLowerCase()===d.name.toLowerCase()&&(w.von||null)===(d.von||'Freund')&&(w.barcode||null)===d.barcode);
+let art='neu';
+if(t){
+const neuer=d.geaendert>(t.geaendert||0);
+art=backupModus?(neuer?'update':'bekannt'):(t.vonId&&t.vonId===d.vonId&&neuer?'update':'bekannt');
+}
+plaene.push({d,art,t});
+}
+return plaene;
+}
+
+async function anwenden(plaene,backupModus){
+for(const {d,art,t} of plaene){
+if(art==='bekannt')continue;
+const basis={name:d.name,wertung:d.wertung,kommentar:d.kommentar,barcode:d.barcode,haendler:d.haendler,preis:d.preis,
+bild:d.bild||(t?t.bild:null)||null,geaendert:d.geaendert||Date.now(),vonId:d.vonId,
+von:backupModus?d.von:(d.von||(t?t.von:null)||'Freund')};
+const w=art==='update'?{...t,...basis}:{...basis,eintragId:d.eintragId||crypto.randomUUID()};
+await sichern(w);
+}
+}
+
+let offenerImport=null;
+
+function importZeigen({liste:l,backup}){
+const plaene=planen(l,weine,!!backup);
+const neu=plaene.filter(p=>p.art==='neu'),upd=plaene.filter(p=>p.art==='update'),an=neu.length+upd.length;
+const schon=plaene.length-an;
+let titel,text;
+if(backup){
+titel='Backup einspielen';
+text=`Das Backup enthält ${l.length} Bewertungen${backup.erstellt?` (erstellt ${esc(backup.erstellt.slice(0,10))})`:''}: ${neu.length} neu, ${upd.length} aktualisiert, ${schon} schon vorhanden.`
++(backup.nutzerId&&backup.nutzerId!==meineId()?'<br><br>Deine Nutzer-ID wird auf die ID aus dem Backup gesetzt, damit deine geteilten Bewertungen derselben Person zugeordnet bleiben.':'');
+}else if(!an){
+titel='Bewertung erhalten';text='Das hast du schon in deiner Liste.';
+}else if(an===1){
+const p=(neu[0]||upd[0]).d;
+titel='Bewertung erhalten';
+text=`${esc(p.von||'Ein Freund')} hat „${esc(p.name)}“ ${upd.length?'aktualisiert':'bewertet'}:<br>${zahl(p.wertung)} von 5 ${wertungText(p.wertung)}`+(p.kommentar?`<br>„${esc(p.kommentar)}“`:'');
+}else{
+titel='Bewertungen erhalten';
+text=`${esc(l[0].von||'Ein Freund')} hat dir ${an} Bewertungen geschickt (${neu.length} neu, ${upd.length} aktualisiert), zum Beispiel:<br>`
++[...neu,...upd].slice(0,3).map(p=>`${zahl(p.d.wertung)}/5 ${esc(p.d.name)}`).join('<br>')
++(schon?`<br><br>${schon} schon vorhanden, werden übersprungen.`:'');
+}
+$('#impTitel').textContent=titel;$('#impText').innerHTML=text;
+$('#impJa').disabled=!an&&!backup;
+offenerImport={plaene,backup};
+$('#importDlg').showModal();
+}
+
+$('#impNein').onclick=()=>{offenerImport=null;$('#importDlg').close()};
+$('#impJa').onclick=async()=>{
+const o=offenerImport;offenerImport=null;$('#importDlg').close();if(!o)return;
+await anwenden(o.plaene,!!o.backup);
+if(o.backup){
+if(o.backup.nutzerId)speichere('nutzerId',o.backup.nutzerId);
+if(o.backup.name&&!meinName())speichere('name',o.backup.name);
+}
+weine=await alle();liste();toast('Importiert.');
+};
+$('#importDatei').onchange=async e=>{
+const f=e.target.files[0];e.target.value='';if(!f)return;
+if(f.size>30*1024*1024)return toast('Die Datei ist zu groß.');
+let r=null;try{r=await dateiLesen(await f.text())}catch{}
+if(!r||!r.liste.length)return toast('In der Datei wurden keine gültigen Bewertungen gefunden.');
+importZeigen(r);
+};
+
+/* --- Bedienung: Menü und Teilen-Dialog --- */
+
+const meldung=t=>$('#mMeldung').textContent=t;
+$('#menuBtn').addEventListener('click',()=>{$('#mName').value=String(store('name','')||'');$('#mId').textContent=meineId();meldung('')});
+$('#mName').oninput=e=>speichere('name',e.target.value);
+$('#idKopieren').onclick=async()=>{try{await navigator.clipboard.writeText(meineId());meldung('ID kopiert.')}catch{meldung('Kopieren nicht möglich.')}};
+$('#alleTeilen').onclick=()=>{
+const n=meinName();if(!n)return meldung('Trage zuerst deinen Namen ein.');
+if(!weine.length)return meldung('Noch keine Bewertungen.');
+$('#menuZu').click();alleAlsDatei(n);
+};
+$('#backup').onclick=()=>{
+if(!weine.length)return meldung('Noch keine Bewertungen.');
+$('#menuZu').click();backupSpeichern();
+};
+$('#importBtn').onclick=()=>{$('#menuZu').click();$('#importDatei').click()};
+
+let teilenZiel=null;
+function teilenOeffnen(w){
+teilenZiel=w;$('#teilenTitel').textContent='„'+w.name+'“';
+$('#tName').value=String(store('name','')||'');$('#tMeldung').textContent='';
+$('#teilenDlg').showModal();
+}
+$('#teilen').onclick=()=>teilenOeffnen(aktuell);
+$('#tZu').onclick=()=>$('#teilenDlg').close();
+$('#alsNachricht').onclick=()=>{const w=teilenZiel;$('#teilenDlg').close();teilen(w)};
+$('#alsDatei').onclick=()=>{
+const n=$('#tName').value.trim();
+if(!n)return $('#tMeldung').textContent='Bitte gib deinen Namen ein.';
+speichere('name',n);const w=teilenZiel;$('#teilenDlg').close();einzelnAlsDatei(w,n);
+};
+/* ---------- Barcode-Scanner und Open Food Facts ---------- */
+
+let leser=null;
+
+async function scannerStoppen(){
+const l=leser;leser=null;
+if(l){try{await l.stop()}catch{}try{l.clear()}catch{}}
+if($('#scanDlg').open)$('#scanDlg').close();
+}
+
+async function scannerStarten(){
+if(typeof Html5Qrcode==='undefined')return toast('Der Scanner konnte nicht geladen werden.');
+$('#scanMeldung').textContent='Halte den Barcode ruhig in den Rahmen.';
+$('#scanDlg').showModal();
+let gefunden=false;
+try{
+const F=Html5QrcodeSupportedFormats;
+leser=new Html5Qrcode('leser',{
+formatsToSupport:[F.EAN_13,F.EAN_8,F.UPC_A],
+experimentalFeatures:{useBarCodeDetectorIfSupported:true},
+verbose:false
+});
+await leser.start(
+{facingMode:'environment'},
+{fps:10,qrbox:(b,h)=>({width:Math.max(60,Math.floor(Math.min(b,360)*.9)),height:Math.max(60,Math.floor(Math.min(h,360)*.4))})},
+code=>{
+if(gefunden)return;gefunden=true;
+scannerStoppen().then(()=>barcodeGefunden(code));
+},
+()=>{}
+);
+}catch{
+leser=null;
+$('#scanMeldung').textContent='Kamera nicht verfügbar. Prüfe die Berechtigung in den Browser- oder Systemeinstellungen oder tippe den Barcode ein.';
+}
+}
+
+function barcodePruefen(){
+const b=$('#barcode').value.replace(/\D/g,''),d=$('#doppelt');d.innerHTML='';
+const t=b&&weine.find(w=>!w.von&&w.barcode===b&&w.id!==aktuell?.id);
+if(t){
+d.append('Schon bewertet: '+t.name+' ');
+const k=document.createElement('button');k.className='btn t';k.type='button';
+k.textContent='Vorhandene Bewertung öffnen';k.onclick=()=>formOeffnen(t);d.append(k);
+}
+}
+
+async function offAbfrage(code){
+const s=$('#scanStatus');s.textContent='Suche Produktdaten …';
+try{
+const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,brands,image_front_url,stores`);
+if(!r.ok){s.textContent='Nichts gefunden. Bitte Namen selbst eintragen.';return}
+const p=(await r.json()).product;
+if(!p){s.textContent='Nichts gefunden. Bitte Namen selbst eintragen.';return}
+const name=String(p.product_name||'').trim(),marke=String(p.brands||'').split(',')[0].trim();
+const anzeige=name&&marke&&!name.toLowerCase().includes(marke.toLowerCase())?`${name} (${marke})`:(name||marke);
+if(anzeige&&!$('#name').value.trim())$('#name').value=anzeige;
+const laden=String(p.stores||'').split(',')[0].trim();
+if(laden&&!$('#haendler').value.trim())$('#haendler').value=laden;
+const u=gutesBild(p.image_front_url||'');
+if(u&&!bild){bild=u;zeigeBild()}
+pruefeName();chips();
+s.textContent=anzeige||laden||u?'':'Nichts gefunden. Bitte Namen selbst eintragen.';
+}catch{s.textContent='Keine Verbindung oder Abfrage blockiert. Bitte Namen selbst eintragen.'}
+}
+
+async function barcodeGefunden(code){
+$('#barcode').value=code;barcodePruefen();await offAbfrage(code);
+}
+
+$('#scanBtn').onclick=scannerStarten;
+$('#scanZu').onclick=scannerStoppen;
+$('#scanDlg').addEventListener('close',()=>{if(leser)scannerStoppen()});
+$('#barcode').oninput=e=>{e.target.value=e.target.value.replace(/\D/g,'').slice(0,14);barcodePruefen()};
+$('#barcode').onchange=e=>{if(/^\d{8,14}$/.test(e.target.value))offAbfrage(e.target.value)};
+
 /* ---------- Start ---------- */
 (async()=>{
-  try{await dbOeffnen();weine=await alle()}
+  try{
+  await dbOeffnen();weine=await alle();
+  for(const w of weine)if(!w.eintragId){w.eintragId=crypto.randomUUID();await sichern(w)}
+  }
   catch{toast('Speicher nicht verfügbar. Bewertungen können nicht gespeichert werden.')}
   liste();dekoUmschalten();
+  Promise.resolve(navigator.storage?.persist?.()).catch(()=>{});
   if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
 </script>
