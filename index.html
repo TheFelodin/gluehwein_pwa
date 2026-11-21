@@ -620,27 +620,39 @@ if(l){try{await l.stop()}catch{}try{l.clear()}catch{}}
 if($('#scanDlg').open)$('#scanDlg').close();
 }
 
+const NATIV_NUTZEN=true; // auf false stellen = ZXing erzwingen (so verhält sich ein iPhone)
+
 async function scannerStarten(){
 if(typeof Html5Qrcode==='undefined')return toast('Der Scanner konnte nicht geladen werden.');
-$('#scanMeldung').textContent='Halte den Barcode ruhig in den Rahmen.';
+$('#scanMeldung').textContent='Starte Kamera …';
 $('#scanDlg').showModal();
 let gefunden=false;
 try{
 const F=Html5QrcodeSupportedFormats;
+const nativ=NATIV_NUTZEN&&'BarcodeDetector' in window;
 leser=new Html5Qrcode('leser',{
 formatsToSupport:[F.EAN_13,F.EAN_8,F.UPC_A],
-experimentalFeatures:{useBarCodeDetectorIfSupported:true},
+experimentalFeatures:{useBarCodeDetectorIfSupported:nativ},
 verbose:false
 });
 await leser.start(
 {facingMode:'environment'},
-{fps:10,qrbox:(b,h)=>({width:Math.max(60,Math.floor(Math.min(b,360)*.9)),height:Math.max(60,Math.floor(Math.min(h,360)*.4))})},
+{
+fps:15,
+videoConstraints:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},
+qrbox:(b,h)=>({width:Math.max(60,Math.floor(b*.9)),height:Math.max(60,Math.floor(h*.5))})
+},
 code=>{
 if(gefunden)return;gefunden=true;
 scannerStoppen().then(()=>barcodeGefunden(code));
 },
 ()=>{}
 );
+if(!leser)return;
+let info=nativ?'Browser-Erkennung':'ZXing';
+try{const s=leser.getRunningTrackSettings();if(s&&s.width)info+=`, Kamera ${s.width}×${s.height}`}catch{}
+try{await leser.applyVideoConstraints({advanced:[{focusMode:'continuous'}]})}catch{}
+$('#scanMeldung').textContent=`Barcode quer, groß und ruhig in den Rahmen halten (etwa 15 bis 25 cm). ${info}`;
 }catch{
 leser=null;
 $('#scanMeldung').textContent='Kamera nicht verfügbar. Prüfe die Berechtigung in den Browser- oder Systemeinstellungen oder tippe den Barcode ein.';
