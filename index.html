@@ -156,8 +156,13 @@ dialog{max-height:85vh;overflow:auto}dialog hr{border:0;border-top:1px solid var
 <h3>Barcode scannen</h3>
 <div id="leser" style="width:100%;min-height:200px"></div>
 <div class="sub" id="scanMeldung"></div>
+<div class="aktionen" style="justify-content:flex-start">
+<button class="btn t" id="scanFoto" type="button">Foto statt Live-Bild</button>
+<button class="btn t" id="scanLicht" type="button" style="display:none">Licht</button>
+</div>
 <div class="aktionen"><button class="btn t" id="scanZu">Abbrechen</button></div>
 </dialog>
+<input type="file" id="scanDatei" accept="image/*" capture="environment" hidden>
 <div id="gross"><img alt=""></div>
 <div id="toast"></div>
 
@@ -621,10 +626,12 @@ if($('#scanDlg').open)$('#scanDlg').close();
 }
 
 const NATIV_NUTZEN=true; // auf false stellen = ZXing erzwingen (so verhält sich ein iPhone)
+let licht=false;
 
 async function scannerStarten(){
 if(typeof Html5Qrcode==='undefined')return toast('Der Scanner konnte nicht geladen werden.');
 $('#scanMeldung').textContent='Starte Kamera …';
+$('#scanLicht').style.display='none';licht=false;
 $('#scanDlg').showModal();
 let gefunden=false;
 try{
@@ -652,6 +659,7 @@ if(!leser)return;
 let info=nativ?'Browser-Erkennung':'ZXing';
 try{const s=leser.getRunningTrackSettings();if(s&&s.width)info+=`, Kamera ${s.width}×${s.height}`}catch{}
 try{await leser.applyVideoConstraints({advanced:[{focusMode:'continuous'}]})}catch{}
+try{const c=leser.getRunningTrackCapabilities();if(c&&c.torch)$('#scanLicht').style.display=''}catch{}
 $('#scanMeldung').textContent=`Barcode quer, groß und ruhig in den Rahmen halten (etwa 15 bis 25 cm). ${info}`;
 }catch{
 leser=null;
@@ -697,7 +705,36 @@ $('#scanZu').onclick=scannerStoppen;
 $('#scanDlg').addEventListener('close',()=>{if(leser)scannerStoppen()});
 $('#barcode').oninput=e=>{e.target.value=e.target.value.replace(/\D/g,'').slice(0,14);barcodePruefen()};
 $('#barcode').onchange=e=>{if(/^\d{8,14}$/.test(e.target.value))offAbfrage(e.target.value)};
+$('#scanLicht').onclick=async()=>{
+licht=!licht;
+try{await leser.applyVideoConstraints({advanced:[{torch:licht}]})}catch{licht=!licht}
+};
 
+async function barcodeAusBild(datei){
+if('BarcodeDetector' in window){
+try{
+const d=new BarcodeDetector({formats:['ean_13','ean_8','upc_a']});
+const treffer=await d.detect(await createImageBitmap(datei));
+if(treffer.length)return treffer[0].rawValue;
+}catch{}
+}
+try{
+const F=Html5QrcodeSupportedFormats;
+const h=new Html5Qrcode('leser',{formatsToSupport:[F.EAN_13,F.EAN_8,F.UPC_A],verbose:false});
+const text=await h.scanFile(datei,false);
+try{h.clear()}catch{}
+return text;
+}catch{return null}
+}
+
+$('#scanFoto').onclick=async()=>{await scannerStoppen();$('#scanDatei').click()};
+$('#scanDatei').onchange=async e=>{
+const f=e.target.files[0];e.target.value='';if(!f)return;
+const s=$('#scanStatus');s.textContent='Lese Barcode aus dem Foto …';
+const code=await barcodeAusBild(f);
+if(code&&/^\d{8,14}$/.test(code))barcodeGefunden(code);
+else s.textContent='Im Foto wurde kein Barcode erkannt. Aus 10 bis 20 cm fotografieren, Code groß und scharf, oder die Nummer eintippen.';
+};
 /* ---------- Start ---------- */
 (async()=>{
   try{
