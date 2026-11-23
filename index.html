@@ -64,6 +64,30 @@ dialog h3{margin:0 0 8px}dialog select{font:inherit;width:100%;padding:10px;bord
 .zeile{display:flex;align-items:center;gap:12px;margin:14px 0}.zeile span{flex:1}
 #toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#333;color:#fff;padding:10px 16px;border-radius:20px;z-index:20;display:none;font-size:14px}
 dialog{max-height:85vh;overflow:auto}dialog hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#7a1c2c;z-index:5}
+.hinweis{display:flex;align-items:center;gap:8px;margin:4px 16px;padding:8px 8px 8px 14px;background:var(--chip);border-radius:12px;font-size:14px;position:relative;z-index:1}
+.hinweis[hidden]{display:none}.hinweis span{flex:1}.hinweis .ib{font-size:18px;padding:6px}
+#advent{display:none;position:relative;z-index:1;max-width:640px;margin:0 auto;padding:0 16px calc(24px + env(safe-area-inset-bottom))}
+#advent h2{display:flex;align-items:center;margin:8px 0;font-size:22px}
+#tgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+.tf{position:relative;aspect-ratio:1;border:0;padding:0;border-radius:12px;overflow:hidden;background:var(--chip)}
+.tf .hint{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:var(--chip)}
+.tf .hint i{font-style:normal;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:20px;background:color-mix(in srgb,var(--ak) 25%,transparent)}
+.tf .tuer{position:absolute;inset:0;display:grid;place-items:center;background:var(--fa);color:#fff;font-size:24px;font-weight:700;transform-origin:left center;transform:perspective(300px) rotateY(0);transition:transform .5s;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.tf.auf .tuer{transform:perspective(300px) rotateY(-105deg)}.tf.zu .tuer{opacity:.5}
+body.deko main header{padding-top:36px}
+.karte.haube::before{content:"";position:absolute;left:16px;right:16px;top:0;height:14px;pointer-events:none;filter:drop-shadow(0 1.5px 0 rgba(32,64,96,.14));
+background:linear-gradient(#f4f8fc,#f4f8fc) 0 0/100% 4px no-repeat,
+radial-gradient(circle 5px at 11px 4px,#f4f8fc 98%,#0000) 0 0/88px 14px repeat-x,
+radial-gradient(circle 8px at 33px 4px,#f4f8fc 98%,#0000) 0 0/88px 14px repeat-x,
+radial-gradient(circle 7px at 55px 4px,#f4f8fc 98%,#0000) 0 0/88px 14px repeat-x,
+radial-gradient(circle 6px at 77px 4px,#f4f8fc 98%,#0000) 0 0/88px 14px repeat-x}
+#rudolph{position:fixed;left:0;top:0;z-index:6;display:none;padding:8px;cursor:pointer;will-change:transform}
+#rTier{position:relative;display:inline-block;font-size:44px;line-height:1}
+#rNase{position:absolute;left:50%;top:50%;width:26px;height:26px;border-radius:50%;opacity:0;background:radial-gradient(circle,#ff1744,rgba(255,23,68,.4) 60%,transparent 70%)}
+.rf{position:absolute;left:50%;top:50%;margin:-10px;font-size:18px;line-height:1;opacity:0}
+#rBlase{position:absolute;left:50%;bottom:100%;width:max-content;max-width:180px;margin-bottom:-4px;padding:6px 10px;border-radius:12px;background:var(--chip);color:var(--tx);font-size:14px;font-weight:600;line-height:1.3;box-shadow:0 1px 4px rgba(0,0,0,.25);display:none;text-align:left}
+#schlitten{position:fixed;top:calc(180px + env(safe-area-inset-top));left:0;z-index:7;font-size:44px;white-space:nowrap;pointer-events:none;display:none}
 </style>
 </head>
 <body>
@@ -71,9 +95,10 @@ dialog{max-height:85vh;overflow:auto}dialog hr{border:0;border-top:1px solid var
 
 <main id="haupt">
   <header>
-    <div><h1>Glühwein</h1><div class="sub" id="sub"></div><div class="cd" id="cd"></div></div>
-    <button class="ib" id="menuBtn" aria-label="Menü">⋮</button>
+    <div><h1>Glühwein</h1><div class="sub" id="sub"></div><div class="cd" id="cd"></div><div class="cd" id="adHinweis" style="cursor:pointer"></div></div>
+    <button class="ib" id="adventBtn" aria-label="Adventskalender" style="display:none">🎁</button><button class="ib" id="menuBtn" aria-label="Menü">⋮</button>
   </header>
+  <div class="hinweis" id="iosHint" hidden><span>Tippe auf Teilen (□↑) und wähle „Zum Home-Bildschirm“. Starte die App dann von dort, nur so bleiben deine Bewertungen dauerhaft gespeichert. Die installierte App beginnt mit einer leeren Liste.</span><button class="ib" id="iosHintZu" aria-label="Schließen">✕</button></div>
   <section id="liste"></section>
   <button class="btn fab" id="neu">＋ Neu</button>
 </main>
@@ -148,6 +173,7 @@ dialog{max-height:85vh;overflow:auto}dialog hr{border:0;border-top:1px solid var
 <dialog id="importDlg">
 <h3 id="impTitel"></h3>
 <div id="impText"></div>
+<div class="zeile" id="impEigenZeile" style="display:none"><span>Das sind meine eigenen Bewertungen<br><small class="sub" id="impEigenInfo"></small></span><input type="checkbox" id="impEigen"></div>
 <div class="aktionen"><button class="btn t" id="impNein">Verwerfen</button><button class="btn" id="impJa">Übernehmen</button></div>
 </dialog>
 
@@ -163,6 +189,20 @@ dialog{max-height:85vh;overflow:auto}dialog hr{border:0;border-top:1px solid var
 <div class="aktionen"><button class="btn t" id="scanZu">Abbrechen</button></div>
 </dialog>
 <input type="file" id="scanDatei" accept="image/*" capture="environment" hidden>
+<section id="advent">
+  <h2><button class="ib" id="adZurueck" aria-label="Zurück">←</button><span>Adventskalender</span></h2>
+  <div class="sub" id="adZahl"></div>
+  <div class="sub">🎯 Aufgabe · 📖 Fakt · 💡 Tipp · ✨ Idee · ✅ erledigt</div>
+  <button class="btn t" id="adTest" style="display:none">Testtürchen zurücksetzen</button>
+  <div id="tgrid"></div>
+</section>
+<dialog id="adventDlg">
+  <h3 id="adT"></h3><div class="sub" id="adArt" style="font-weight:600"></div>
+  <p id="adText"></p><div id="adStatus" style="font-weight:600"></div>
+  <div class="aktionen"><button class="btn" id="adClose">Schließen</button></div>
+</dialog>
+<div id="rudolph"><div id="rBlase"></div><div id="rTier"><span>🦌</span><i id="rNase"></i><b class="rf">❄</b><b class="rf">❄</b><b class="rf">❄</b><b class="rf">❄</b><b class="rf">❄</b><b class="rf">❄</b><b class="rf">❄</b><b class="rf">❄</b></div></div>
+<div id="schlitten">🎅🛷✨</div>
 <div id="gross"><img alt=""></div>
 <div id="toast"></div>
 
@@ -238,15 +278,15 @@ function kopf(){
   $('#cd').textContent=!deko()?'':tage>1?`🎄 Noch ${tage} Tage bis Heiligabend`:tage===1?'🎄 Morgen ist Heiligabend':tage===0?'🎄 Heute ist Heiligabend':h.getMonth()===11&&h.getDate()<=26?'🎄 Frohe Weihnachten':'';
 }
 function liste(){
-  kopf();
+  kopf();adventKopf();
   const L=$('#liste');L.innerHTML='';
   if(!weine.length){L.innerHTML='<div class="leer"><div style="font-size:64px">🍷</div><b>Noch keine Bewertungen</b>Tippe auf „Neu“ und bewerte deinen ersten Glühwein.</div>';return}
-  for(const w of sortiert()){
-  const k=document.createElement('div');k.className='karte';
+  for(const w of sortiert().filter(w=>verstecktAb==null||w.id<=verstecktAb)){
+  const k=document.createElement('div');k.className='karte'+(deko()?' haube':'');
   const laden=[w.haendler,w.preis!=null?preisText(w.preis):null].filter(Boolean).join(' · ');
   const et=[laden?'🛒 '+laden:null,w.von?'von '+w.von:null].filter(Boolean);
   k.innerHTML=`<div class="bild">${w.bild?`<img src="${w.bild}" alt="">`:'🍷'}</div><div class="inh"><div class="name">${esc(w.name)}</div><div class="tp"></div>${w.kommentar?`<div class="kom">${esc(w.kommentar)}</div>`:''}${et.length?`<div class="chips">${et.map(c=>`<span class="chip">${esc(c)}</span>`).join('')}</div>`:''}</div>${w.wertung>=5?`<span class="stern">${deko()?'🎄':'⭐'}</span>`:''}`;
-  k.querySelector('.tp').append(tassen(w.wertung,30,w.von?null:async v=>{w.wertung=v;w.geaendert=Date.now();await sichern(w);liste()}));
+  k.querySelector('.tp').append(tassen(w.wertung,30,w.von?null:async v=>{const war=w.wertung;w.wertung=v;w.geaendert=Date.now();await sichern(w);liste();if(v>=5&&war<5)rentierJubel()}));
   if(w.bild)k.querySelector('.bild').addEventListener('click',e=>{e.stopPropagation();gross(w.bild)});
   k.addEventListener('click',()=>formOeffnen(w));
   L.append(k);
@@ -302,7 +342,7 @@ const w={...(aktuell||{}),name:$('#name').value.trim(),wertung,kommentar:$('#kom
 haendler:$('#haendler').value.trim()||null,preis:isNaN(p)||p<0?null:p,bild,
 barcode:$('#barcode').value.replace(/\D/g,'').slice(0,14)||null,
 eintragId:aktuell?.eintragId||crypto.randomUUID(),geaendert:Date.now()};
-await sichern(w);weine=await alle();ansicht(false);liste();
+const jub=w.wertung>=5&&(aktuell?.wertung||0)<5,neuEintrag=!aktuell&&deko();if(neuEintrag){verstecktAb=weine.reduce((m,x)=>Math.max(m,x.id),0);sort='neueste';asc=false}await sichern(w);weine=await alle();ansicht(false);liste();if(neuEintrag)schlittenFlug();if(jub)rentierJubel();
 };
 $('#loeschen').onclick=async()=>{
   if(!confirm(`„${aktuell.name}“ wird endgültig gelöscht.`))return;
@@ -352,14 +392,6 @@ function groesse(){
   W=innerWidth;H=innerHeight;
   for(const [c,h] of[[sc,H],[lc,30]]){c.width=W*dpr;c.height=h*dpr}
 }
-function zeichneSchnee(t){
-  const c=sc.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,H);
-  const farbe=getComputedStyle(document.documentElement).getPropertyValue('--flake').trim();
-  for(const f of flocken){
-    const y=((f.v+f.tempo*t)%1)*H,x=f.x*W+Math.sin((f.ph+f.sw*t)*2*Math.PI)*14;
-    kristall(c,x,y,f.r,f.ph*360+t*f.dr*360,farbe,f.a);
-  }
-}
 function zeichneLichter(zeit){
   const c=lc.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,30);
   const n=12,ab=W/n,farben=['#E53935','#FFB300','#43A047','#1E88E5'];
@@ -376,16 +408,16 @@ function zeichneLichter(zeit){
 function schleife(ms){
   if(!laeuft)return;
   const t=(ms/30000)%1;
-  zeichneSchnee(t);
+  zeichneSchnee(t,ms);
   if(!$('#haupt').style.display)zeichneLichter((ms/3000)%1);
   else lc.getContext('2d').clearRect(0,0,W,30);
   requestAnimationFrame(schleife);
 }
 function dekoUmschalten(){
   const an=deko();
-  sc.style.display=lc.style.display=an?'block':'none';
+  sc.style.display=lc.style.display=an?'block':'none';document.body.classList.toggle('deko',an);
   if(an&&!laeuft){
-    flocken=[...Array.from({length:60},()=>flocke(3,6,1,3,.25,.55)),...Array.from({length:45},()=>flocke(4,11,2,5,.5,.9))];
+    flockenNeu();
     groesse();laeuft=true;requestAnimationFrame(schleife);
   }else if(!an)laeuft=false;
 }
@@ -526,13 +558,14 @@ plaene.push({d,art,t});
 return plaene;
 }
 
-async function anwenden(plaene,backupModus){
+async function anwenden(plaene,backupModus,eigId){
 for(const {d,art,t} of plaene){
-if(art==='bekannt')continue;
+const mein=!!eigId&&d.vonId===eigId;
+if(art==='bekannt'&&!(mein&&t&&t.von))continue;
 const basis={name:d.name,wertung:d.wertung,kommentar:d.kommentar,barcode:d.barcode,haendler:d.haendler,preis:d.preis,
-bild:d.bild||(t?t.bild:null)||null,geaendert:d.geaendert||Date.now(),vonId:d.vonId,
-von:backupModus?d.von:(d.von||(t?t.von:null)||'Freund')};
-const w=art==='update'?{...t,...basis}:{...basis,eintragId:d.eintragId||crypto.randomUUID()};
+bild:d.bild||(t?t.bild:null)||null,geaendert:d.geaendert||Date.now(),vonId:mein?null:d.vonId,
+von:mein?null:backupModus?d.von:(d.von||(t?t.von:null)||'Freund')};
+const w=t?{...t,...basis}:{...basis,eintragId:d.eintragId||crypto.randomUUID()};
 await sichern(w);
 }
 }
@@ -561,15 +594,28 @@ text=`${esc(l[0].von||'Ein Freund')} hat dir ${an} Bewertungen geschickt (${neu.
 +(schon?`<br><br>${schon} schon vorhanden, werden übersprungen.`:'');
 }
 $('#impTitel').textContent=titel;$('#impText').innerHTML=text;
-$('#impJa').disabled=!an&&!backup;
-offenerImport={plaene,backup};
+const zaehl={};for(const d of l)if(d.vonId)zaehl[d.vonId]=(zaehl[d.vonId]||0)+1;
+const eigId=!backup?Object.keys(zaehl).sort((a,b)=>zaehl[b]-zaehl[a])[0]||null:null;
+const meine=eigId?l.filter(d=>d.vonId===eigId):[];
+const konv=meine.filter(d=>weine.some(t=>t.eintragId&&t.eintragId===d.eintragId&&t.von)).length;
+const box=$('#impEigen'),zeigen=!!eigId&&(an>0||konv>0);
+box.checked=false;$('#impEigenZeile').style.display=zeigen?'':'none';
+if(zeigen){
+const keine=!weine.some(w=>!w.von);
+$('#impEigenInfo').textContent=`${meine.length} von ${l.length} stammen von ${meine[0].von?'„'+meine[0].von+'“':'derselben Person'}. `+(keine?'Deine Nutzer-ID wird auf deren ID gesetzt, so bleiben deine geteilten Bewertungen bei Freunden zugeordnet.':'Deine Nutzer-ID bleibt unverändert.');
+}
+const aktual=()=>{$('#impJa').disabled=!(an>0||backup||(box.checked&&konv>0))};
+box.onchange=aktual;aktual();
+offenerImport={plaene,backup,eigId:zeigen?eigId:null,eigName:zeigen?(meine[0].von||''):''};
 $('#importDlg').showModal();
 }
 
 $('#impNein').onclick=()=>{offenerImport=null;$('#importDlg').close()};
 $('#impJa').onclick=async()=>{
 const o=offenerImport;offenerImport=null;$('#importDlg').close();if(!o)return;
-await anwenden(o.plaene,!!o.backup);
+const eigen=!o.backup&&o.eigId&&$('#impEigen').checked?o.eigId:null,keineEigenen=!weine.some(w=>!w.von);
+await anwenden(o.plaene,!!o.backup,eigen);
+if(eigen){if(keineEigenen)speichere('nutzerId',eigen);if(o.eigName&&!meinName())speichere('name',o.eigName)}
 if(o.backup){
 if(o.backup.nutzerId)speichere('nutzerId',o.backup.nutzerId);
 if(o.backup.name&&!meinName())speichere('name',o.backup.name);
@@ -735,6 +781,240 @@ const code=await barcodeAusBild(f);
 if(code&&/^\d{8,14}$/.test(code))barcodeGefunden(code);
 else s.textContent='Im Foto wurde kein Barcode erkannt. Aus 10 bis 20 cm fotografieren, Code groß und scharf, oder die Nummer eintippen.';
 };
+/* ---------- Adventskalender ---------- */
+const ADVENT_TESTTAG=0; // Zum Testen einen Tag von 1 bis 24 eintragen, vor dem Verteilen wieder 0
+const adventsTag=()=>{if(ADVENT_TESTTAG>0)return Math.min(ADVENT_TESTTAG,24);const d=new Date(),m=d.getMonth()+1;return m===12?Math.min(d.getDate(),24):m===1&&d.getDate()<=6?24:0};
+const adventJahr=()=>{const d=new Date();return d.getMonth()===0?d.getFullYear()-1:d.getFullYear()};
+const adventKey=t=>ADVENT_TESTTAG>0?'test-'+t:adventJahr()+'-'+t;
+const adventDatum=t=>ADVENT_TESTTAG>0?new Date():new Date(adventJahr(),11,t);
+const adventOffen=()=>new Set(store('adventOffen',[]));
+const istTag=(ms,d)=>{const x=new Date(ms);return x.getFullYear()===d.getFullYear()&&x.getMonth()===d.getMonth()&&x.getDate()===d.getDate()};
+const eigene=()=>weine.filter(w=>!w.von);
+const am=(d,f)=>eigene().some(w=>istTag(w.geaendert||0,d)&&f(w));
+const SYM={Aufgabe:'🎯',Fakt:'📖',Tipp:'💡'},ARTF={Aufgabe:'#8E1B3A',Fakt:'#1E5FA8',Tipp:'#2E6B3F'};
+const sym=a=>SYM[a]||'✨';
+const ADV=[
+['Aufgabe','Willkommen im Advent! Bewerte heute einen Glühwein.',d=>am(d,()=>true)],
+['Fakt','Schon die Römer würzten Wein mit Honig und Gewürzen. Der Vorläufer des Glühweins ist also rund 2000 Jahre alt.'],
+['Aufgabe','Füge heute bei einer Bewertung ein Foto hinzu.',d=>am(d,w=>!!w.bild)],
+['Tipp','Glühwein sollte nicht kochen. Ideal sind etwa 60 bis 70 °C, sonst verfliegen Alkohol und Aroma.'],
+['Aufgabe','Schreibe heute einen Kommentar zu einem Glühwein.',d=>am(d,w=>!!(w.kommentar||'').trim())],
+['Fakt','In der EU ist Glühwein gesetzlich geregelt: Er besteht aus gewürztem Wein und hat zwischen 7 und 14,5 Prozent Alkohol.'],
+['Aufgabe','Trage heute bei einer Bewertung den Preis ein. So findest du den Preis-Leistungs-Sieger.',d=>am(d,w=>w.preis!=null)],
+['Tipp','Nimm Zimtstangen statt Zimtpulver, dann bleibt dein Glühwein klar.'],
+['Idee','Probiere heute einen weißen Glühwein. Er schmeckt oft fruchtiger und heller.'],
+['Aufgabe','Bewerte heute zwei Glühweine am selben Tag.',d=>eigene().filter(w=>istTag(w.geaendert||0,d)).length>=2],
+['Fakt','Alkohol erweitert die Blutgefäße. Die Haut fühlt sich warm an, der Körper kühlt aber eher schneller aus.'],
+['Aufgabe','Scanne heute einen Barcode und lass Name und Bild automatisch ausfüllen.',d=>am(d,w=>!!w.barcode)],
+['Tipp','Orangenscheiben nur kurz mitziehen lassen. Die weiße Haut der Schale kann sonst bitter werden.'],
+['Aufgabe','Hast du Glühwein von mindestens drei verschiedenen Händlern bewertet?',()=>new Set(eigene().map(w=>(w.haendler||'').trim().toLowerCase()).filter(Boolean)).size>=3],
+['Fakt','Bei der Feuerzangenbowle tropft brennender, rumgetränkter Zuckerhut in den heißen Rotwein.'],
+['Idee','Teile heute eine Bewertung mit einem Freund. Gemeinsam schmeckt Glühwein besser.'],
+['Aufgabe','Vergib heute mindestens vier Tassen. Welcher Glühwein hat es verdient?',d=>am(d,w=>w.wertung>=4)],
+['Fakt','Glühwein gibt es in vielen Ländern: In Schweden heißt er Glögg, in Frankreich vin chaud.'],
+['Aufgabe','Bewerte heute einen Glühwein von einem Händler, bei dem du noch nichts bewertet hast.',d=>{const m=eigene();return m.some(w=>istTag(w.geaendert||0,d)&&(w.haendler||'').trim()&&!m.some(o=>o.id<w.id&&(o.haendler||'').toLowerCase()===w.haendler.toLowerCase()))}],
+['Tipp','Zucker oder Honig erst am Ende dazugeben und abschmecken. So wird der Glühwein nicht zu süß.'],
+['Aufgabe','Hast du heute einen Glühwein mit fünf Tassen gefunden?',d=>am(d,w=>w.wertung>=5)],
+['Fakt','Auf vielen Weihnachtsmärkten ist die Glühweintasse ein Sammlerstück. Manche Städte bringen jedes Jahr ein neues Motiv heraus.'],
+['Idee','Schau dir deine Rangliste an und wähle den „Glühwein des Jahres“.'],
+['Idee','Frohe Weihnachten! Dein Adventskalender ist komplett. Trinke heute eine Tasse auf deinen Lieblingsglühwein. Prost!']
+];
+function adventKopf(){
+  const t=adventsTag(),an=deko()&&t>0;
+  $('#adventBtn').style.display=an?'':'none';
+  const offen=an&&(ADVENT_TESTTAG>0||new Date().getMonth()===11)&&!adventOffen().has(adventKey(t));
+  $('#adHinweis').textContent=offen?`🎁 Türchen ${t} wartet auf dich!`:'';
+}
+function adventRaster(){
+  const heute=adventsTag(),offen=adventOffen(),G=$('#tgrid'),FA=['var(--pr)','#2E6B3F','#b07a1c'];let n=0;G.innerHTML='';
+  for(let t=1;t<=24;t++){
+    const o=offen.has(adventKey(t)),[art,,pr]=ADV[t-1];if(o)n++;
+    const er=o&&pr?pr(adventDatum(t)):null,b=document.createElement('button');
+    b.className='tf'+(o?' auf':'')+(t>heute?' zu':'');
+    b.style.setProperty('--fa',FA[(t-1)%3]);b.style.setProperty('--ak',ARTF[art]||'#8A5A00');
+    b.innerHTML=`<span class="hint">${o?`<i>${sym(art)}</i>${er===null?'':er?'✅':'offen'}`:'⭐'}</span><span class="tuer">${t}</span>`;
+    b.onclick=()=>adventKlick(t,b);G.append(b);
+  }
+  $('#adZahl').textContent=`${n} von 24 Türchen geöffnet`;
+}
+function adventZeigen(t){
+  const [art,text,pr]=ADV[t-1],er=pr?pr(adventDatum(t)):null;
+  $('#adT').textContent='Türchen '+t;$('#adArt').textContent=`${sym(art)} ${art}`;$('#adText').textContent=text;
+  $('#adStatus').textContent=er===null?'':er?'✅ Erledigt':'Noch nicht erledigt';
+  $('#adventDlg').showModal();
+}
+function adventKlick(t,b){
+  if(t>adventsTag())return toast(`Türchen ${t} ist erst am ${t}. Dezember dran.`);
+  const k=adventKey(t),o=adventOffen();
+  if(o.has(k))return adventZeigen(t);
+  o.add(k);speichere('adventOffen',[...o]);b.classList.add('auf');
+  setTimeout(()=>{adventZeigen(t);adventRaster();adventKopf()},550);
+}
+function adventAnsicht(an){
+  $('#haupt').style.display=an?'none':'';$('#advent').style.display=an?'block':'none';
+  if(an){$('#adTest').style.display=ADVENT_TESTTAG>0?'':'none';adventRaster()}
+  window.scrollTo(0,0);
+}
+$('#adventBtn').onclick=$('#adHinweis').onclick=()=>adventAnsicht(true);
+$('#adZurueck').onclick=()=>{adventAnsicht(false);liste()};
+$('#adClose').onclick=()=>$('#adventDlg').close();
+$('#adTest').onclick=()=>{speichere('adventOffen',[...adventOffen()].filter(k=>!k.startsWith('test-')));adventRaster();adventKopf()};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){kopf();adventKopf()}});
+
+/* ---------- Hinweis „Zum Home-Bildschirm“ (nur iOS im Browser) ---------- */
+(()=>{
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  const app=navigator.standalone===true||matchMedia('(display-mode: standalone)').matches;
+  if(ios&&!app&&!store('iosHinweisZu',false))$('#iosHint').hidden=false;
+  $('#iosHintZu').onclick=()=>{$('#iosHint').hidden=true;speichere('iosHinweisZu',true)};
+})();
+
+/* ---------- Schneefall mit Finger, Rudolph, Schlitten ---------- */
+let fern=[],finger=null,vorherDruck=null,letzteZeit=0,verstecktAb=null;
+const gegriffen={i:-1};
+function flockenNeu(){
+  fern=Array.from({length:100},()=>flocke(3,6,1,3,.25,.55));
+  flocken=Array.from({length:45},()=>({...flocke(7,13,2,5,.5,.9),ox:0,oy:0,vx:0,vy:0}));
+}
+const fingerPos=e=>{const p=(e.touches&&e.touches[0])||e;return{x:p.clientX,y:p.clientY}};
+const opt={passive:true,capture:true};
+addEventListener('touchstart',e=>{finger=fingerPos(e)},opt);
+addEventListener('touchmove',e=>{finger=fingerPos(e)},opt);
+addEventListener('touchend',e=>{finger=e.touches.length?fingerPos(e):null},opt);
+addEventListener('touchcancel',()=>{finger=null},opt);
+addEventListener('mousedown',e=>{finger=fingerPos(e)},opt);
+addEventListener('mousemove',e=>{if(e.buttons)finger=fingerPos(e)},opt);
+addEventListener('mouseup',()=>{finger=null},opt);
+const basis=(f,t)=>({x:f.x*W+Math.sin((f.ph+f.sw*t)*2*Math.PI)*14,y:((f.v+f.tempo*t)%1)*H});
+function physik(t,jetzt){
+  const dt=Math.min(.05,Math.max(.001,(jetzt-letzteZeit)/1000));letzteZeit=jetzt;
+  const d=finger;
+  if(d&&!vorherDruck){
+    let b=-1,ba=44;
+    flocken.forEach((f,i)=>{const p=basis(f,t),a=Math.hypot(p.x+f.ox-d.x,p.y+f.oy-d.y);if(a<ba){ba=a;b=i}});
+    gegriffen.i=b;
+  }
+  if(!d)gegriffen.i=-1;
+  vorherDruck=d;
+  const g=gegriffen.i,reich=g>=0?70:90,gr=3000;
+  flocken.forEach((f,i)=>{
+    const p=basis(f,t);
+    if(i===g&&d){
+      const nx=d.x-p.x,ny=d.y-p.y;
+      f.vx=Math.max(-gr,Math.min(gr,(nx-f.ox)/dt));f.vy=Math.max(-gr,Math.min(gr,(ny-f.oy)/dt));
+      f.ox=nx;f.oy=ny;return;
+    }
+    if(d){
+      const dx=p.x+f.ox-d.x,dy=p.y+f.oy-d.y,a=Math.hypot(dx,dy);
+      if(a<reich&&a>1){const s=1-a/reich;f.vx+=dx/a*s*1600*dt;f.vy+=dy/a*s*1600*dt}
+    }
+    f.ox+=f.vx*dt;f.oy+=f.vy*dt;
+    const br=Math.max(0,1-3*dt);f.vx*=br;f.vy*=br;
+    const zu=Math.max(0,1-.9*dt);f.ox*=zu;f.oy*=zu;
+  });
+}
+function zeichneSchnee(t,jetzt){
+  const c=sc.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,H);
+  const farbe=getComputedStyle(document.documentElement).getPropertyValue('--flake').trim();
+  physik(t,jetzt||performance.now());
+  for(const f of fern){const b=basis(f,t);kristall(c,b.x,b.y,f.r,f.ph*360+t*f.dr*360,farbe,f.a)}
+  flocken.forEach((f,i)=>{
+    const b=basis(f,t),g=i===gegriffen.i;
+    kristall(c,b.x+f.ox,b.y+f.oy,f.r*(g?1.4:1),f.ph*360+t*f.dr*360,farbe,g?1:f.a);
+  });
+}
+
+/* --- Schlitten bei neuem Eintrag: Karte erscheint, wenn er in der Mitte ist --- */
+function schlittenFlug(){
+  const e=$('#schlitten'),t0=performance.now();let mitte=false;e.style.display='block';
+  const f=t=>{
+    const p=Math.min(1,(t-t0)/2000);
+    e.style.transform=`translate(${(innerWidth+140)-(innerWidth+280)*p}px,${Math.sin(p*4*Math.PI)*18}px)`;
+    if(p>=.5&&!mitte){mitte=true;verstecktAb=null;liste()}
+    if(p<1)requestAnimationFrame(f);else{e.style.display='none';verstecktAb=null;liste()}
+  };
+  requestAnimationFrame(f);
+}
+
+/* --- Rudolph --- */
+const RENTIER_BLICKT_LINKS=true; // false, falls das Rentier rückwärts läuft
+const NASE_X=-20,NASE_Y=-6;      // Lage der Nase zur Emoji-Mitte, auf dem iPhone ggf. anpassen
+const SPRUECHE=['Ho ho ho! 🎅','Schon wieder ein Glühwein?','Meine Nase leuchtet nur für dich. 🔴','Frohe Weihnachten! 🎄','Hast du schon bewertet?','🎁 Bald ist Bescherung!'];
+const rEl=$('#rudolph'),rTier=$('#rTier'),rNase=$('#rNase'),rBlase=$('#rBlase'),rFl=[...document.querySelectorAll('.rf')];
+const R={gr:1,sp:0,wa:0,sn:0,na:0};
+let rSicht=false,rRechts=true,rBahn=.7,rPos=0,rPause=false,rTipps=0,rErinnert=false,rSofort=false,rBis=performance.now()+rnd(8000,15000),rLetzt=0;
+const schlaf=ms=>new Promise(r=>setTimeout(r,ms));
+const tw=(k,z,ms)=>new Promise(ok=>{const a=R[k],t0=performance.now();const f=t=>{const p=Math.min(1,(t-t0)/ms);R[k]=a+(z-a)*p;if(p<1)requestAnimationFrame(f);else ok()};requestAnimationFrame(f)});
+const rAktiv=()=>deko()&&!$('#haupt').style.display&&!document.querySelector('dialog[open]')&&$('#gross').style.display!=='flex';
+const rMitte=()=>(innerWidth+120)*(rRechts?rPos:1-rPos)-120+35;
+const imBild=rand=>{if(!rSicht)return false;const m=rMitte();return m>=rand&&m<=innerWidth-rand};
+const adventHinweis=()=>$('#adHinweis').textContent||null;
+const adventWissen=()=>{const o=adventOffen();return ADV.map((a,i)=>[a,i+1]).filter(([a,t])=>o.has(adventKey(t))&&a[0]!=='Aufgabe').map(([a])=>`${sym(a[0])} ${a[1]}`)};
+rNase.style.marginLeft=(NASE_X-13)+'px';rNase.style.marginTop=(NASE_Y-13)+'px';
+function rRender(){
+  const W2=innerWidth,H2=innerHeight,an=rRechts?rPos:1-rPos;
+  const x=(W2+120)*an-120,hup=rPause?0:Math.abs(Math.sin(rPos*60))*12,y=H2*rBahn-hup-R.sp*28;
+  rEl.style.transform=`translate(${x}px,${y}px)`;
+  const sp=(rRechts===RENTIER_BLICKT_LINKS)?-1:1;
+  rTier.style.transform=`scale(${sp*R.gr},${R.gr}) rotate(${R.wa}deg)`;
+  rNase.style.opacity=Math.min(1,Math.max(0,R.na));rNase.style.transform=`scale(${R.na})`;
+  rFl.forEach((e,k)=>{const w=k*Math.PI/4,d=R.sn*90;e.style.opacity=R.sn>0?1-R.sn:0;e.style.transform=`translate(${Math.cos(w)*d}px,${Math.sin(w)*d-R.sn*20}px)`});
+  const m=rMitte(),sh=Math.min(Math.max(m,95),W2-95)-m;
+  rBlase.style.transform=`translateX(calc(-50% + ${sh}px))`;
+}
+async function reagiere(text){
+  if(rPause)return;
+  rPause=true;rTipps++;navigator.vibrate?.(30);
+  const h=adventHinweis(),w=adventWissen();
+  const t=text||(rTipps%5===0?'🍷 Prost, auf dich!':h&&rTipps%2===1?h:w.length&&Math.random()<.5?w[Math.floor(Math.random()*w.length)]:SPRUECHE[Math.floor(Math.random()*SPRUECHE.length)]);
+  rBlase.textContent=t;rBlase.style.display='block';
+  tw('gr',1.5,250);tw('na',1,300);
+  (async()=>{R.sn=0;await tw('sn',1,1100);R.sn=0})();
+  for(let i=0;i<2;i++){await tw('sp',1,170);await tw('sp',0,170)}
+  await tw('wa',12,120);await tw('wa',-12,160);await tw('wa',0,120);
+  await schlaf(Math.max(600,t.length*45));
+  tw('na',0,250);await tw('gr',1,250);
+  rBlase.style.display='none';rPause=false;
+}
+async function rentierJubel(){
+  let v=0;
+  while((rPause||!imBild(innerWidth*.3))&&v<200){if(!rSicht)rSofort=true;await schlaf(100);v++}
+  if(!rPause&&imBild(innerWidth*.3))reagiere('Fünf Tassen! 🏆');
+  rSofort=false;
+}
+function rTick(ms){
+  requestAnimationFrame(rTick);
+  if(document.hidden){rLetzt=0;return}
+  const dt=rLetzt?Math.min(.1,(ms-rLetzt)/1000):0;rLetzt=ms;
+  if(!rSicht){
+    if(rSofort||ms>=rBis){
+      if(!deko()){rBis=ms+5000;return}
+      rRechts=Math.random()<.5;rBahn=.55+Math.random()*.3;rPos=0;rSicht=true;
+    }else return;
+  }
+  if(!rPause)rPos+=dt/8;
+  if(!rErinnert&&!rPause&&adventHinweis()&&rPos>=.4&&rPos<=.6&&imBild(innerWidth*.3)){rErinnert=true;reagiere(adventHinweis())}
+  rEl.style.display=rAktiv()?'block':'none';
+  rRender();
+  if(rPos>=1){rSicht=false;rEl.style.display='none';rBis=ms+rnd(25000,60000)}
+}
+rEl.addEventListener('click',()=>{if(imBild(45))reagiere()});
+requestAnimationFrame(rTick);
+
+/* ---------- Geteilte Datei empfangen (Android Share-Target) ---------- */
+async function geteiltesPruefen(){
+  if(!/[?&]geteilt=1/.test(location.search))return;
+  history.replaceState(null,'',location.pathname);
+  try{
+    const c=await caches.open('gluehwein-share'),r=await c.match('geteilt.json');
+    if(!r)return toast('Es wurde keine Datei empfangen.');
+    const text=await r.text();await c.delete('geteilt.json');
+    const x=await dateiLesen(text);
+    if(!x||!x.liste.length)return toast('In der Datei wurden keine gültigen Bewertungen gefunden.');
+    importZeigen(x);
+  }catch{toast('Die geteilte Datei konnte nicht gelesen werden.')}
+}
+
 /* ---------- Start ---------- */
 (async()=>{
   try{
@@ -743,6 +1023,7 @@ else s.textContent='Im Foto wurde kein Barcode erkannt. Aus 10 bis 20 cm fotogra
   }
   catch{toast('Speicher nicht verfügbar. Bewertungen können nicht gespeichert werden.')}
   liste();dekoUmschalten();
+  geteiltesPruefen();
   Promise.resolve(navigator.storage?.persist?.()).catch(()=>{});
   if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
