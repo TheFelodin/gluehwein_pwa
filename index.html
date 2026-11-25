@@ -180,7 +180,7 @@ radial-gradient(circle 6px at 77px 4px,#f4f8fc 98%,#0000) 0 0/88px 14px repeat-x
 <input type="file" id="importDatei" accept=".json,application/json" hidden>
 <dialog id="scanDlg">
 <h3>Barcode scannen</h3>
-<div id="leser" style="width:100%;min-height:200px"></div>
+<div id="leser" style="position:relative;width:100%;overflow:hidden;border-radius:12px"><video id="scanVideo" playsinline muted autoplay style="display:block;width:100%;max-height:50vh;object-fit:cover;background:#000"></video><div style="position:absolute;left:6%;right:6%;top:28%;bottom:28%;border:2px solid rgba(255,255,255,.85);border-radius:8px;pointer-events:none"></div></div>
 <div class="sub" id="scanMeldung"></div>
 <div class="aktionen" style="justify-content:flex-start">
 <button class="btn t" id="scanFoto" type="button">Foto statt Live-Bild</button>
@@ -206,7 +206,7 @@ radial-gradient(circle 6px at 77px 4px,#f4f8fc 98%,#0000) 0 0/88px 14px repeat-x
 <div id="gross"><img alt=""></div>
 <div id="toast"></div>
 
-<script src="html5-qrcode.min.js"></script>
+<script src="zxing-scan.js"></script>
 <script>
 'use strict';
 const $=s=>document.querySelector(s);
@@ -663,50 +663,56 @@ speichere('name',n);const w=teilenZiel;$('#teilenDlg').close();einzelnAlsDatei(w
 };
 /* ---------- Barcode-Scanner und Open Food Facts ---------- */
 
-let leser=null;
+let leser=null; // laufende Kamera, null = aus
+let licht=false;
+const FORMATE=['ean_13','ean_8','upc_a'];
+const NATIV_NUTZEN=true; // false = immer ZXing (so verhält sich ein iPhone)
+const nativOk=()=>NATIV_NUTZEN&&'BarcodeDetector' in window;
+
+function bildDaten(quelle,b,h,maxB){
+  const s=Math.min(1,maxB/Math.max(b,h)),cv=bildDaten.cv||(bildDaten.cv=document.createElement('canvas'));
+  cv.width=Math.round(b*s);cv.height=Math.round(h*s);
+  const c=cv.getContext('2d',{willReadFrequently:true});c.drawImage(quelle,0,0,cv.width,cv.height);
+  return c.getImageData(0,0,cv.width,cv.height);
+}
 
 async function scannerStoppen(){
 const l=leser;leser=null;
-if(l){try{await l.stop()}catch{}try{l.clear()}catch{}}
+if(l){l.lauf=false;l.strom.getTracks().forEach(t=>t.stop());$('#scanVideo').srcObject=null}
 if($('#scanDlg').open)$('#scanDlg').close();
 }
 
-const NATIV_NUTZEN=true; // auf false stellen = ZXing erzwingen (so verhält sich ein iPhone)
-let licht=false;
-
 async function scannerStarten(){
-if(typeof Html5Qrcode==='undefined')return toast('Der Scanner konnte nicht geladen werden.');
+if(!navigator.mediaDevices?.getUserMedia)return toast('Dieses Gerät erlaubt keinen Kamerazugriff.');
+const nativ=nativOk();
+if(!nativ&&typeof ZXScan==='undefined')return toast('Der Scanner konnte nicht geladen werden.');
 $('#scanMeldung').textContent='Starte Kamera …';
 $('#scanLicht').style.display='none';licht=false;
 $('#scanDlg').showModal();
-let gefunden=false;
 try{
-const F=Html5QrcodeSupportedFormats;
-const nativ=NATIV_NUTZEN&&'BarcodeDetector' in window;
-leser=new Html5Qrcode('leser',{
-formatsToSupport:[F.EAN_13,F.EAN_8,F.UPC_A],
-experimentalFeatures:{useBarCodeDetectorIfSupported:nativ},
-verbose:false
-});
-await leser.start(
-{facingMode:'environment'},
-{
-fps:15,
-videoConstraints:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},
-qrbox:(b,h)=>({width:Math.max(60,Math.floor(b*.9)),height:Math.max(60,Math.floor(h*.5))})
-},
-code=>{
-if(gefunden)return;gefunden=true;
-scannerStoppen().then(()=>barcodeGefunden(code));
-},
-()=>{}
-);
-if(!leser)return;
-let info=nativ?'Browser-Erkennung':'ZXing';
-try{const s=leser.getRunningTrackSettings();if(s&&s.width)info+=`, Kamera ${s.width}×${s.height}`}catch{}
-try{await leser.applyVideoConstraints({advanced:[{focusMode:'continuous'}]})}catch{}
-try{const c=leser.getRunningTrackCapabilities();if(c&&c.torch)$('#scanLicht').style.display=''}catch{}
-$('#scanMeldung').textContent=`Barcode quer, groß und ruhig in den Rahmen halten (etwa 15 bis 25 cm). ${info}`;
+const strom=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});
+const v=$('#scanVideo');v.srcObject=strom;await v.play();
+const spur=strom.getVideoTracks()[0],l={strom,spur,lauf:true};leser=l;
+try{await spur.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch{}
+try{if(spur.getCapabilities?.().torch)$('#scanLicht').style.display=''}catch{}
+const det=nativ?new BarcodeDetector({formats:FORMATE}):null;
+if(!nativ)ZXScan.laden().catch(()=>{});
+const s=spur.getSettings?.()||{},info=`${nativ?'Browser-Erkennung':'ZXing'}${s.width?`, Kamera ${s.width}×${s.height}`:''}`;
+const start=performance.now();
+$('#scanMeldung').textContent=`Barcode quer, groß und ruhig halten (etwa 15 bis 25 cm). ${info}`;
+while(l.lauf){
+const t0=performance.now();
+if(v.readyState>=2&&v.videoWidth){
+let code=null;
+try{
+if(det){const r=await det.detect(v);code=r.length?r[0].rawValue:null}
+else code=await ZXScan.lesen(bildDaten(v,v.videoWidth,v.videoHeight,1600));
+}catch{}
+if(code&&/^\d{8,14}$/.test(code)&&l.lauf){await scannerStoppen();barcodeGefunden(code);return}
+}
+if(t0-start>10000)$('#scanMeldung').textContent=`Nichts erkannt. Mehr Licht, Abstand ändern oder „Foto statt Live-Bild“ nutzen. ${info}`;
+await new Promise(r=>setTimeout(r,Math.max(30,120-(performance.now()-t0))));
+}
 }catch{
 leser=null;
 $('#scanMeldung').textContent='Kamera nicht verfügbar. Prüfe die Berechtigung in den Browser- oder Systemeinstellungen oder tippe den Barcode ein.';
@@ -752,25 +758,22 @@ $('#scanDlg').addEventListener('close',()=>{if(leser)scannerStoppen()});
 $('#barcode').oninput=e=>{e.target.value=e.target.value.replace(/\D/g,'').slice(0,14);barcodePruefen()};
 $('#barcode').onchange=e=>{if(/^\d{8,14}$/.test(e.target.value))offAbfrage(e.target.value)};
 $('#scanLicht').onclick=async()=>{
+if(!leser)return;
 licht=!licht;
-try{await leser.applyVideoConstraints({advanced:[{torch:licht}]})}catch{licht=!licht}
+try{await leser.spur.applyConstraints({advanced:[{torch:licht}]})}catch{licht=!licht}
 };
 
 async function barcodeAusBild(datei){
-if('BarcodeDetector' in window){
+let bmp;try{bmp=await createImageBitmap(datei)}catch{return null}
 try{
-const d=new BarcodeDetector({formats:['ean_13','ean_8','upc_a']});
-const treffer=await d.detect(await createImageBitmap(datei));
-if(treffer.length)return treffer[0].rawValue;
-}catch{}
+if(nativOk()){
+try{const r=await new BarcodeDetector({formats:FORMATE}).detect(bmp);if(r.length)return r[0].rawValue}catch{}
 }
-try{
-const F=Html5QrcodeSupportedFormats;
-const h=new Html5Qrcode('leser',{formatsToSupport:[F.EAN_13,F.EAN_8,F.UPC_A],verbose:false});
-const text=await h.scanFile(datei,false);
-try{h.clear()}catch{}
-return text;
-}catch{return null}
+if(typeof ZXScan!=='undefined'){
+for(const g of[2000,3200]){const code=await ZXScan.lesen(bildDaten(bmp,bmp.width,bmp.height,g));if(code)return code}
+}
+}catch{}
+return null;
 }
 
 $('#scanFoto').onclick=async()=>{await scannerStoppen();$('#scanDatei').click()};

@@ -1,6 +1,6 @@
-const V = 'gluehwein-v4';
+const V = 'gluehwein-v5';
 const SHARE = 'gluehwein-share';
-const F = ['./', 'index.html', 'manifest.json', 'html5-qrcode.min.js', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
+const F = ['./', 'index.html', 'manifest.json', 'zxing-scan.js', 'zxing_reader.wasm', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(F)));
